@@ -133,7 +133,7 @@ class SyncService {
             progress: currentProgress,
             message: 'Subiendo finca: "${farm['name']}"...',
           );
-          await client.from('farms').upsert(farm);
+          await client.from('farms').upsert(Map<String, dynamic>.from(farm));
           await db.update(
             'farms',
             {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
@@ -149,7 +149,7 @@ class SyncService {
             progress: currentProgress,
             message: 'Subiendo parcela: "${poly['name']}"...',
           );
-          await client.from('map_polygons').upsert(poly);
+          await client.from('map_polygons').upsert(Map<String, dynamic>.from(poly));
           await db.update(
             'map_polygons',
             {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
@@ -165,7 +165,7 @@ class SyncService {
             progress: currentProgress,
             message: 'Subiendo punto de interés: "${pt['name']}"...',
           );
-          await client.from('map_points').upsert(pt);
+          await client.from('map_points').upsert(Map<String, dynamic>.from(pt));
           await db.update(
             'map_points',
             {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
@@ -181,7 +181,7 @@ class SyncService {
             progress: currentProgress,
             message: 'Subiendo animal: "${animal['name']}"...',
           );
-          await client.from('animals').upsert(animal);
+          await client.from('animals').upsert(Map<String, dynamic>.from(animal));
           await db.update(
             'animals',
             {'sync_status': 'sincronizado'},
@@ -197,7 +197,7 @@ class SyncService {
             progress: currentProgress,
             message: 'Subiendo alerta de geocerca: "${alert['animal_name']}"...',
           );
-          await client.from('animal_alerts').upsert(alert);
+          await client.from('animal_alerts').upsert(Map<String, dynamic>.from(alert));
           await db.update(
             'animal_alerts',
             {'sync_status': 'sincronizado'},
