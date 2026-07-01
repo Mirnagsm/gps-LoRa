@@ -73,7 +73,7 @@ class SyncService {
     }
   }
 
-  /// Runs the sync loop, backing up to Supabase when connected, emitting progress.
+  /// Runs the sync loop: uploads local changes first (Push), then downloads all from cloud (Pull).
   Stream<SyncProgress> syncNow() async* {
     yield const SyncProgress(progress: 0.05, message: 'Verificando conectividad de red...');
     await Future.delayed(const Duration(milliseconds: 600));
@@ -100,8 +100,8 @@ class SyncService {
       return;
     }
 
-    yield const SyncProgress(progress: 0.15, message: 'Obteniendo registros pendientes de base de datos local...');
-    await Future.delayed(const Duration(milliseconds: 500));
+    yield const SyncProgress(progress: 0.10, message: 'Obteniendo registros pendientes de base de datos local...');
+    await Future.delayed(const Duration(milliseconds: 300));
 
     final db = DatabaseService.instance;
     final farms = await db.query('farms', where: "sync_status = 'pendiente'");
@@ -111,116 +111,172 @@ class SyncService {
     final alerts = await db.query('animal_alerts', where: "sync_status = 'pendiente'");
 
     final totalCount = farms.length + points.length + polygons.length + animals.length + alerts.length;
-
-    if (totalCount == 0) {
-      yield const SyncProgress(
-        progress: 1.0,
-        message: 'Todos los datos de CampoMap ya están sincronizados en Supabase.',
-        isCompleted: true,
-      );
-      return;
-    }
-
-    yield SyncProgress(
-      progress: 0.20,
-      message: 'Conectando con Supabase... ($totalCount registros por subir)',
-    );
-    await Future.delayed(const Duration(milliseconds: 600));
-
     final client = Supabase.instance.client;
-    double currentProgress = 0.20;
-    double stepSize = 0.70 / totalCount;
 
     try {
-      // 1. Upload Farms
-      for (final farm in farms) {
+      // ==========================================
+      // FASE 1: SUBIDA (PUSH)
+      // ==========================================
+      if (totalCount > 0) {
         yield SyncProgress(
-          progress: currentProgress,
-          message: 'Subiendo finca: "${farm['name']}"...',
+          progress: 0.15,
+          message: 'Conectando con Supabase... ($totalCount registros por subir)',
         );
-        await client.from('farms').upsert(farm);
-        await db.update(
-          'farms',
-          {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
-          where: 'id = ?',
-          whereArgs: [farm['id']],
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        double currentProgress = 0.15;
+        double stepSize = 0.40 / totalCount; // allocate up to 55% for uploading
+
+        // 1. Upload Farms
+        for (final farm in farms) {
+          yield SyncProgress(
+            progress: currentProgress,
+            message: 'Subiendo finca: "${farm['name']}"...',
+          );
+          await client.from('farms').upsert(farm);
+          await db.update(
+            'farms',
+            {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [farm['id']],
+          );
+          currentProgress += stepSize;
+        }
+
+        // 2. Upload Polygons
+        for (final poly in polygons) {
+          yield SyncProgress(
+            progress: currentProgress,
+            message: 'Subiendo parcela: "${poly['name']}"...',
+          );
+          await client.from('map_polygons').upsert(poly);
+          await db.update(
+            'map_polygons',
+            {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [poly['id']],
+          );
+          currentProgress += stepSize;
+        }
+
+        // 3. Upload Points
+        for (final pt in points) {
+          yield SyncProgress(
+            progress: currentProgress,
+            message: 'Subiendo punto de interés: "${pt['name']}"...',
+          );
+          await client.from('map_points').upsert(pt);
+          await db.update(
+            'map_points',
+            {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [pt['id']],
+          );
+          currentProgress += stepSize;
+        }
+
+        // 4. Upload Animals
+        for (final animal in animals) {
+          yield SyncProgress(
+            progress: currentProgress,
+            message: 'Subiendo animal: "${animal['name']}"...',
+          );
+          await client.from('animals').upsert(animal);
+          await db.update(
+            'animals',
+            {'sync_status': 'sincronizado'},
+            where: 'id = ?',
+            whereArgs: [animal['id']],
+          );
+          currentProgress += stepSize;
+        }
+
+        // 5. Upload Alerts
+        for (final alert in alerts) {
+          yield SyncProgress(
+            progress: currentProgress,
+            message: 'Subiendo alerta de geocerca: "${alert['animal_name']}"...',
+          );
+          await client.from('animal_alerts').upsert(alert);
+          await db.update(
+            'animal_alerts',
+            {'sync_status': 'sincronizado'},
+            where: 'id = ?',
+            whereArgs: [alert['id']],
+          );
+          currentProgress += stepSize;
+        }
+      } else {
+        yield const SyncProgress(
+          progress: 0.30,
+          message: 'Sin registros locales pendientes por subir. Iniciando descarga...',
         );
-        currentProgress += stepSize;
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      // 2. Upload Polygons
-      for (final poly in polygons) {
-        yield SyncProgress(
-          progress: currentProgress,
-          message: 'Subiendo parcela: "${poly['name']}"...',
-        );
-        await client.from('map_polygons').upsert(poly);
-        await db.update(
-          'map_polygons',
-          {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
-          where: 'id = ?',
-          whereArgs: [poly['id']],
-        );
-        currentProgress += stepSize;
+      // ==========================================
+      // FASE 2: DESCARGA (PULL)
+      // ==========================================
+      yield const SyncProgress(
+        progress: 0.55,
+        message: 'Descargando datos actualizados de Supabase...',
+      );
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      // 1. Download Farms
+      yield const SyncProgress(progress: 0.60, message: 'Descargando fincas de la nube...');
+      final serverFarms = await client.from('farms').select();
+      for (final farm in serverFarms) {
+        final Map<String, dynamic> row = Map<String, dynamic>.from(farm);
+        row['sync_status'] = 'sincronizado';
+        await db.insert('farms', row);
       }
 
-      // 3. Upload Points
-      for (final pt in points) {
-        yield SyncProgress(
-          progress: currentProgress,
-          message: 'Subiendo punto de interés: "${pt['name']}"...',
-        );
-        await client.from('map_points').upsert(pt);
-        await db.update(
-          'map_points',
-          {'sync_status': 'sincronizado', 'updated_at': DateTime.now().toIso8601String()},
-          where: 'id = ?',
-          whereArgs: [pt['id']],
-        );
-        currentProgress += stepSize;
+      // 2. Download Polygons
+      yield const SyncProgress(progress: 0.70, message: 'Descargando parcelas/lotes de la nube...');
+      final serverPolygons = await client.from('map_polygons').select();
+      for (final poly in serverPolygons) {
+        final Map<String, dynamic> row = Map<String, dynamic>.from(poly);
+        row['sync_status'] = 'sincronizado';
+        await db.insert('map_polygons', row);
       }
 
-      // 4. Upload Animals
-      for (final animal in animals) {
-        yield SyncProgress(
-          progress: currentProgress,
-          message: 'Subiendo animal: "${animal['name']}"...',
-        );
-        await client.from('animals').upsert(animal);
-        await db.update(
-          'animals',
-          {'sync_status': 'sincronizado'},
-          where: 'id = ?',
-          whereArgs: [animal['id']],
-        );
-        currentProgress += stepSize;
+      // 3. Download Points
+      yield const SyncProgress(progress: 0.80, message: 'Descargando puntos de interés de la nube...');
+      final serverPoints = await client.from('map_points').select();
+      for (final pt in serverPoints) {
+        final Map<String, dynamic> row = Map<String, dynamic>.from(pt);
+        row['sync_status'] = 'sincronizado';
+        await db.insert('map_points', row);
       }
 
-      // 5. Upload Alerts
-      for (final alert in alerts) {
-        yield SyncProgress(
-          progress: currentProgress,
-          message: 'Subiendo alerta de geocerca: "${alert['animal_name']}"...',
-        );
-        await client.from('animal_alerts').upsert(alert);
-        await db.update(
-          'animal_alerts',
-          {'sync_status': 'sincronizado'},
-          where: 'id = ?',
-          whereArgs: [alert['id']],
-        );
-        currentProgress += stepSize;
+      // 4. Download Animals
+      yield const SyncProgress(progress: 0.85, message: 'Descargando animales de la nube...');
+      final serverAnimals = await client.from('animals').select();
+      for (final animal in serverAnimals) {
+        final Map<String, dynamic> row = Map<String, dynamic>.from(animal);
+        row['sync_status'] = 'sincronizado';
+        await db.insert('animals', row);
+      }
+
+      // 5. Download Alerts
+      yield const SyncProgress(progress: 0.90, message: 'Descargando historial de alertas de la nube...');
+      final serverAlerts = await client.from('animal_alerts').select();
+      for (final alert in serverAlerts) {
+        final Map<String, dynamic> row = Map<String, dynamic>.from(alert);
+        row['sync_status'] = 'sincronizado';
+        await db.insert('animal_alerts', row);
       }
 
       yield const SyncProgress(
         progress: 1.0,
-        message: '¡Respaldo en la nube completado con éxito! Todos los datos locales están guardados en Supabase.',
+        message: '¡Sincronización bidireccional completada con éxito!',
         isCompleted: true,
       );
     } catch (e) {
       print('Supabase sync error: $e');
       yield SyncProgress(
-        progress: currentProgress,
+        progress: 0.50,
         message: 'Error al sincronizar con Supabase: $e. Reintentando más tarde.',
         hasError: true,
       );
