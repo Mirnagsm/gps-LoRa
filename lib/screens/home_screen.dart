@@ -504,28 +504,44 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        // Quick Stats Row
-                        Row(
+                        // Quick Stats Row - Using Wrap to prevent overflow on narrow screens
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Icon(Icons.layers, size: 16, color: Colors.brown[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$polygonsCount parc.',
-                              style: TextStyle(fontSize: 12, color: Colors.brown[800], fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.layers, size: 14, color: Colors.brown[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$polygonsCount parc.',
+                                  style: TextStyle(fontSize: 11, color: Colors.brown[800], fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Icon(Icons.square_foot, size: 16, color: Colors.brown[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${areaHectares.toStringAsFixed(1)} Ha',
-                              style: TextStyle(fontSize: 12, color: Colors.brown[800], fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.square_foot, size: 14, color: Colors.brown[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${areaHectares.toStringAsFixed(1)} Ha',
+                                  style: TextStyle(fontSize: 11, color: Colors.brown[800], fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Icon(Icons.location_on, size: 16, color: Colors.blue[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$pointsCount pts.',
-                              style: TextStyle(fontSize: 12, color: Colors.blue[800], fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.location_on, size: 14, color: Colors.blue[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$pointsCount pts.',
+                                  style: TextStyle(fontSize: 11, color: Colors.blue[800], fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ],
                         ),
