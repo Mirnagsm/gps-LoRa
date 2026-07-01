@@ -82,6 +82,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sounds/cow.mp3
+    - assets/sounds/horse.mp3
+    - assets/sounds/dog.mp3
+    - assets/sounds/cat.mp3
+    - assets/sounds/sheep.mp3
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

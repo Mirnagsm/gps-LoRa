@@ -9,6 +9,7 @@ class Animal {
   final double? lastLongitude;
   final String status; // 'dentro', 'fuera'
   final String syncStatus; // 'pendiente', 'sincronizado'
+  final String species; // 'caballo', 'perro', 'gato', 'vaca/toro', 'ovejo'
 
   Animal({
     required this.id,
@@ -21,6 +22,7 @@ class Animal {
     this.lastLongitude,
     required this.status,
     required this.syncStatus,
+    required this.species,
   });
 
   /// Helper getter to retrieve list of all allowed geofence polygon IDs
@@ -41,6 +43,7 @@ class Animal {
       'last_longitude': lastLongitude,
       'status': status,
       'sync_status': syncStatus,
+      'species': species,
     };
   }
 
@@ -56,6 +59,7 @@ class Animal {
       lastLongitude: map['last_longitude'] != null ? (map['last_longitude'] as num).toDouble() : null,
       status: map['status'] as String? ?? 'dentro',
       syncStatus: map['sync_status'] as String? ?? 'pendiente',
+      species: map['species'] as String? ?? 'vaca/toro',
     );
   }
 
@@ -70,6 +74,7 @@ class Animal {
     double? lastLongitude,
     String? status,
     String? syncStatus,
+    String? species,
   }) {
     return Animal(
       id: id ?? this.id,
@@ -82,6 +87,7 @@ class Animal {
       lastLongitude: lastLongitude ?? this.lastLongitude,
       status: status ?? this.status,
       syncStatus: syncStatus ?? this.syncStatus,
+      species: species ?? this.species,
     );
   }
 }

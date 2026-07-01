@@ -338,6 +338,40 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     }
   }
 
+  // Helper to determine sound path based on animal classification
+  String _getAnimalSoundPath(String species) {
+    switch (species.toLowerCase()) {
+      case 'caballo':
+        return 'sounds/horse.mp3';
+      case 'perro':
+        return 'sounds/dog.mp3';
+      case 'gato':
+        return 'sounds/cat.mp3';
+      case 'ovejo':
+        return 'sounds/sheep.mp3';
+      case 'vaca/toro':
+      default:
+        return 'sounds/cow.mp3';
+    }
+  }
+
+  // Helper to determine animal emoji based on species
+  String _getAnimalEmoji(String species) {
+    switch (species.toLowerCase()) {
+      case 'caballo':
+        return '🐴';
+      case 'perro':
+        return '🐶';
+      case 'gato':
+        return '🐱';
+      case 'ovejo':
+        return '🐑';
+      case 'vaca/toro':
+      default:
+        return '🐮';
+    }
+  }
+
   // Ray-Casting alert trigger system
   void _triggerAlarm(Animal animal) {
     if (_isAlarmActive) return;
@@ -347,10 +381,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     });
 
     try {
+      final soundPath = _getAnimalSoundPath(animal.species);
       _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      _audioPlayer.play(AssetSource('sounds/cow.mp3'));
+      _audioPlayer.play(AssetSource(soundPath));
     } catch (e) {
-      print('Error playing cow sound: $e');
+      print('Error playing animal sound: $e');
     }
 
     _alarmTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -512,6 +547,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final detailsController = TextEditingController();
     final caretakerController = TextEditingController();
     final Set<String> selectedGeofenceIds = {};
+    String selectedSpecies = 'vaca/toro';
 
     showDialog(
       context: context,
@@ -544,6 +580,27 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     TextField(
                       controller: caretakerController,
                       decoration: const InputDecoration(labelText: 'Cuidador Designado'),
+                    ),
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Clasificación / Especie:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: selectedSpecies,
+                      items: const [
+                        DropdownMenuItem(value: 'caballo', child: Text('Caballo 🐴')),
+                        DropdownMenuItem(value: 'perro', child: Text('Perro 🐶')),
+                        DropdownMenuItem(value: 'gato', child: Text('Gato 🐱')),
+                        DropdownMenuItem(value: 'vaca/toro', child: Text('Vaca / Toro 🐮')),
+                        DropdownMenuItem(value: 'ovejo', child: Text('Ovejo 🐑')),
+                      ],
+                      onChanged: (val) {
+                        setDialogState(() {
+                          if (val != null) selectedSpecies = val;
+                        });
+                      },
                     ),
                     const SizedBox(height: 16),
                     if (_polygons.isNotEmpty) ...[
@@ -626,6 +683,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       allowedPolygonId: selectedGeofenceIds.isEmpty ? null : selectedGeofenceIds.join(','),
                       status: 'dentro',
                       syncStatus: 'pendiente',
+                      species: selectedSpecies,
                     );
 
                     await DatabaseService.instance.insert('animals', animal.toMap());
@@ -1791,14 +1849,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: isViolating ? Colors.red[100] : Colors.green[100],
-                          child: Icon(
-                            isViolating ? Icons.warning : Icons.pets,
-                            color: isViolating ? Colors.red[800] : Colors.green[800],
+                          child: Text(
+                            isViolating ? '⚠️' : _getAnimalEmoji(animal.species),
+                            style: const TextStyle(fontSize: 20),
                           ),
                         ),
                         title: Text(animal.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(
-                          'Cuidador: ${animal.caretaker}\nEstado: ${animal.status.toUpperCase()}',
+                          'Clase: ${animal.species.toUpperCase()}\nCuidador: ${animal.caretaker}\nEstado: ${animal.status.toUpperCase()}',
                           style: const TextStyle(fontSize: 12),
                         ),
                         trailing: PopupMenuButton<String>(

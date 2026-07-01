@@ -45,7 +45,7 @@ class DatabaseService {
 
       _db = await sqflite.openDatabase(
         dbPath,
-        version: 2,
+        version: 3,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       );
@@ -57,6 +57,13 @@ class DatabaseService {
   Future<void> _onUpgrade(sqflite.Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createAnimalsAndAlertsTables(db);
+    }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('ALTER TABLE animals ADD COLUMN species TEXT;');
+      } catch (e) {
+        print('Column species might already exist: $e');
+      }
     }
   }
 
@@ -72,7 +79,8 @@ class DatabaseService {
         last_latitude REAL,
         last_longitude REAL,
         status TEXT,
-        sync_status TEXT
+        sync_status TEXT,
+        species TEXT
       )
     ''');
 
