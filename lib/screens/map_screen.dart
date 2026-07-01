@@ -1200,12 +1200,22 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 TileLayer(
                   urlTemplate: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
                   userAgentPackageName: 'com.campomap.offline',
+                  tileProvider: NetworkTileProvider(
+                    headers: const {
+                      'User-Agent': 'CampoMapOffline/1.0 (com.campomap.offline; contact@example.com)'
+                    },
+                  ),
                   maxZoom: 22,
                 )
               else
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.campomap.offline',
+                  tileProvider: NetworkTileProvider(
+                    headers: const {
+                      'User-Agent': 'CampoMapOffline/1.0 (com.campomap.offline; contact@example.com)'
+                    },
+                  ),
                   maxZoom: 22,
                 ),
               PolygonLayer(polygons: mapPolygons),
