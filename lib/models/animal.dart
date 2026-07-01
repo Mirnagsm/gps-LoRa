@@ -4,7 +4,7 @@ class Animal {
   final String name;
   final String details;
   final String caretaker;
-  final String? allowedPolygonId; // Null means no active geofence
+  final String? allowedPolygonId; // Can contain comma-separated list of polygon IDs
   final double? lastLatitude;
   final double? lastLongitude;
   final String status; // 'dentro', 'fuera'
@@ -22,6 +22,12 @@ class Animal {
     required this.status,
     required this.syncStatus,
   });
+
+  /// Helper getter to retrieve list of all allowed geofence polygon IDs
+  List<String> get allowedPolygonIds {
+    if (allowedPolygonId == null || allowedPolygonId!.trim().isEmpty) return [];
+    return allowedPolygonId!.split(',').where((id) => id.isNotEmpty).toList();
+  }
 
   Map<String, dynamic> toMap() {
     return {

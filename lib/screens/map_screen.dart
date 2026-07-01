@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import '../models/farm.dart';
 import '../models/map_point.dart';
@@ -73,6 +74,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   bool _isAlarmPlaying = false;
   Timer? _alarmTimer;
   bool _alarmFlash = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -91,6 +93,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     _alarmTimer?.cancel();
     _mapController.dispose();
     _tabController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -343,6 +346,13 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       _isAlarmPlaying = true;
     });
 
+    try {
+      _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      _audioPlayer.play(AssetSource('sounds/cow.mp3'));
+    } catch (e) {
+      print('Error playing cow sound: $e');
+    }
+
     _alarmTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -352,7 +362,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         _alarmFlash = !_alarmFlash;
       });
       if (_isAlarmPlaying) {
-        SystemSound.play(SystemSoundType.click);
         HapticFeedback.vibrate();
       }
     });
@@ -364,6 +373,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       _isAlarmActive = false;
     });
     _alarmTimer?.cancel();
+    try {
+      _audioPlayer.stop();
+    } catch (e) {
+      print('Error stopping cow sound: $e');
+    }
   }
 
   // Toggle tracking mode (real device as collar)
@@ -383,21 +397,27 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           _currentLocation = position;
         });
 
-        final geofenceId = _trackingAnimal!.allowedPolygonId;
+        final allowedIds = _trackingAnimal!.allowedPolygonIds;
         String newStatus = 'dentro';
         
-        if (geofenceId != null) {
-          final polyIndex = _polygons.indexWhere((p) => p.id == geofenceId);
-          if (polyIndex != -1) {
-            final poly = _polygons[polyIndex];
-            final inside = GisHelper.isPointInPolygon(position, poly.coordinates);
-            newStatus = inside ? 'dentro' : 'fuera';
-            
-            final prevStatus = _trackingAnimal!.status;
-            if (newStatus == 'fuera' && prevStatus != 'fuera') {
-              _triggerAlarm(_trackingAnimal!);
-              await _logGeofenceAlert(_trackingAnimal!, pos.latitude, pos.longitude);
+        if (allowedIds.isNotEmpty) {
+          bool isInsideAny = false;
+          for (final polyId in allowedIds) {
+            final polyIndex = _polygons.indexWhere((p) => p.id == polyId);
+            if (polyIndex != -1) {
+              final poly = _polygons[polyIndex];
+              if (GisHelper.isPointInPolygon(position, poly.coordinates)) {
+                isInsideAny = true;
+                break;
+              }
             }
+          }
+          newStatus = isInsideAny ? 'dentro' : 'fuera';
+          
+          final prevStatus = _trackingAnimal!.status;
+          if (newStatus == 'fuera' && prevStatus != 'fuera') {
+            _triggerAlarm(_trackingAnimal!);
+            await _logGeofenceAlert(_trackingAnimal!, pos.latitude, pos.longitude);
           }
         }
 
@@ -491,7 +511,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final nameController = TextEditingController();
     final detailsController = TextEditingController();
     final caretakerController = TextEditingController();
-    String? selectedGeofenceId = _polygons.isNotEmpty ? _polygons.first.id : null;
+    final Set<String> selectedGeofenceIds = {};
 
     showDialog(
       context: context,
@@ -518,7 +538,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     const SizedBox(height: 12),
                     TextField(
                       controller: detailsController,
-                      decoration: const InputDecoration(labelText: 'Detalles (ej. Raza, Peso, Raza)'),
+                      decoration: const InputDecoration(labelText: 'Detalles (ej. Raza, Peso, Edad)'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -529,22 +549,49 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     if (_polygons.isNotEmpty) ...[
                       const Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('Geocerca Permitida (Lote):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        child: Text('Geocercas Permitidas (Lotes):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       ),
-                      DropdownButton<String>(
-                        isExpanded: true,
-                        value: selectedGeofenceId,
-                        items: _polygons.map((poly) {
-                          return DropdownMenuItem<String>(
-                            value: poly.id,
-                            child: Text('${poly.name} (${poly.areaHectares.toStringAsFixed(1)} Ha)'),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          setDialogState(() {
-                            selectedGeofenceId = val;
-                          });
-                        },
+                      const SizedBox(height: 6),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.green[200]!, width: 1),
+                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.green[50]?.withOpacity(0.3),
+                        ),
+                        child: Scrollbar(
+                          child: ListView(
+                            shrinkWrap: true,
+                            physics: const ClampingScrollPhysics(),
+                            children: _polygons.map((poly) {
+                              final isChecked = selectedGeofenceIds.contains(poly.id);
+                              return CheckboxListTile(
+                                activeColor: Colors.green[700],
+                                checkColor: Colors.white,
+                                title: Text(
+                                  poly.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                subtitle: Text(
+                                  '${poly.areaHectares.toStringAsFixed(1)} Hectáreas',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                                ),
+                                value: isChecked,
+                                dense: true,
+                                controlAffinity: ListTileControlAffinity.leading,
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    if (val == true) {
+                                      selectedGeofenceIds.add(poly.id);
+                                    } else {
+                                      selectedGeofenceIds.remove(poly.id);
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
                     ] else
                       const Align(
@@ -576,7 +623,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       name: nameController.text.trim(),
                       details: detailsController.text.trim(),
                       caretaker: caretakerController.text.trim(),
-                      allowedPolygonId: selectedGeofenceId,
+                      allowedPolygonId: selectedGeofenceIds.isEmpty ? null : selectedGeofenceIds.join(','),
                       status: 'dentro',
                       syncStatus: 'pendiente',
                     );
